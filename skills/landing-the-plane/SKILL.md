@@ -36,14 +36,44 @@ Do NOT use this skill for:
 Before requesting merge:
 
 1. Run `/verify <task-id>` against the Beads task's acceptance criteria.
-   - Dev server must be live at `localhost:5001`.
+   - **Verify against the LOCAL dev server** (`localhost:5001`, `make dev-clean`) — before the PR is merged, never against the post-merge dev deploy.
    - Use Playwright MCP — not manual review, not unit tests.
-   - Capture screenshots under `e2e/verify/<task-id>/`.
+   - Capture screenshots into `docs/verification/<YYYY-MM-DD>-<task-id>/`. This must be a **committed** location — do NOT use `e2e/verify/`, it is gitignored and screenshots there cannot be referenced from a PR.
 2. Write the verification report back to the Beads task as a comment.
-3. If `/verify` returns PARTIAL or FAIL: fix and re-run. Do not push past a failing verify.
-4. Only after a clean PASS comment on the task: green-light the merge.
+3. **Post the screenshots to the PR** — commit the `docs/verification/...` folder on the PR branch, then add a PR comment embedding them. See [Attaching screenshots to a PR](#attaching-screenshots-to-a-pr) for the exact URL form (the repo is private — `raw.githubusercontent.com` will NOT render).
+4. If `/verify` returns PARTIAL or FAIL: fix and re-run. Do not push past a failing verify.
+5. Only after a clean PASS comment on the task AND screenshots visibly rendering on the PR: green-light the merge.
 
-If the PR has no associated Beads task (rare — back-merge, dependency bump, etc.), still run a focused Playwright pass on the affected surface(s) and attach the screenshots + outcome to the PR description.
+If the PR has no associated Beads task (rare — back-merge, dependency bump, etc.), still run a focused local Playwright pass on the affected surface(s) and post the screenshots + outcome to the PR per the section below.
+
+### Attaching screenshots to a PR
+
+`sudo-labs-uk/etch` is a **private** repo. This breaks the obvious approaches:
+
+- ❌ `raw.githubusercontent.com/...` — GitHub fetches this anonymously; private-repo blobs 404, image shows broken.
+- ❌ Dragging into the web UI — not available from the CLI.
+
+✅ **Correct method:**
+
+1. Commit the screenshots on the PR branch under `docs/verification/<YYYY-MM-DD>-<task-id>/` and push. (They also render in the PR's "Files changed" tab this way.)
+2. Embed them in a PR comment using the **`github.com` blob URL pinned to the commit SHA**, with `?raw=true`:
+
+   ```markdown
+   ![desc](https://github.com/sudo-labs-uk/etch/blob/<commit-sha>/docs/verification/<dir>/<file>.png?raw=true)
+   ```
+
+   This URL is on the `github.com` domain, so a logged-in reviewer's session authenticates the image fetch and it renders. Pin to the **commit SHA**, not the branch name (branch names with `/` break the URL and move under you).
+
+3. Post via `gh pr comment <n> --body "..."`. To **edit** an existing comment, `gh pr comment` has no edit flag — use `gh api repos/sudo-labs-uk/etch/issues/comments/<comment-id> -X PATCH -f body="$(cat file.md)"`.
+
+**Account note:** `gh pr ...` auto-resolves the account with repo access, but `gh api ...` uses the *active* account. If `gh api` returns 404 on this repo, run `gh auth switch --user Rendiere` first (the account with `sudo-labs-uk` org access), then switch back when done.
+
+After posting, confirm the images actually render — fetch `.body_html` for the comment and check the `<img src>` is still a `github.com/...` URL (not rewritten to a broken `camo` proxy):
+
+```bash
+gh api repos/sudo-labs-uk/etch/issues/comments/<id> \
+  -H "Accept: application/vnd.github.full+json" --jq '.body_html' | grep -oE '<img[^>]*src="[^"]*"'
+```
 
 ### Gate 2 — `dev` → `main` (UAT script sweep)
 
